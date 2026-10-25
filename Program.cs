@@ -1,6 +1,7 @@
 ﻿if (args.Length == 0)
 {
     Console.WriteLine("Usage: SortFolder <folder_path> [--verbose]");
+    Console.WriteLine("  --verbose  Print every moved file.");
 
     return 1;
 }
@@ -11,7 +12,6 @@ var verbose = args.Skip(1).Contains("--verbose", StringComparer.OrdinalIgnoreCas
 if (!Directory.Exists(folderPath))
 {
     Console.WriteLine($"Error: The folder '{folderPath}' is not a valid directory.");
-
     return 1;
 }
 
@@ -40,7 +40,6 @@ var fileExtensions = new Dictionary<string, string>(StringComparer.OrdinalIgnore
     { ".7z", "Archives" }
 };
 
-// Listing the folder is fatal if it fails: there is nothing to process.
 string[] files;
 
 try
@@ -73,8 +72,9 @@ catch (ArgumentException ex)
     return 2;
 }
 
-var movedCount = 0;
-var failedCount = 0;
+int movedCount, failedCount;
+
+movedCount = failedCount = 0;
 
 foreach (var file in files)
 {
@@ -138,6 +138,13 @@ Console.WriteLine($"Done. Moved: {movedCount}, Failed: {failedCount}.");
 
 return failedCount == 0 ? 0 : 3;
 
+void ReportFailure(string fileName, string reason)
+{
+    failedCount++;
+
+    Console.WriteLine($"Skipped '{fileName}': {reason}");
+}
+
 static string GetUniqueFilePath(string path)
 {
     if (!File.Exists(path))
@@ -158,11 +165,4 @@ static string GetUniqueFilePath(string path)
             return candidate;
         }
     }
-}
-
-void ReportFailure(string fileName, string reason)
-{
-    failedCount++;
-
-    Console.WriteLine($"Skipped '{fileName}': {reason}");
 }
