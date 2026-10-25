@@ -37,32 +37,29 @@ Dictionary<string, string> fileExtensions = new Dictionary<string, string>(Strin
     // Add more file extensions and their corresponding folder names as needed
 };
 
-foreach (var directoryPath in Directory.GetDirectories(folderPath))
+foreach (var file in Directory.GetFiles(folderPath))
 {
-    foreach (var file in Directory.GetFiles(directoryPath))
+    var extension = Path.GetExtension(file);
+
+    if (fileExtensions.TryGetValue(extension, out var targetFolderName))
     {
-        var extension = Path.GetExtension(file);
+        var targetFolderPath = Path.Combine(folderPath, targetFolderName);
 
-        if (fileExtensions.TryGetValue(extension, out var targetFolderName))
-        {
-            var targetFolderPath = Path.Combine(folderPath, targetFolderName);
+        Directory.CreateDirectory(targetFolderPath);
 
-            Directory.CreateDirectory(targetFolderPath);
+        var targetFilePath = Path.Combine(targetFolderPath, Path.GetFileName(file));
 
-            var targetFilePath = Path.Combine(targetFolderPath, Path.GetFileName(file));
+        File.Move(file, targetFilePath);
+    }
+    else
+    {
+        var targetFolderPath = Path.Combine(folderPath, "Others");
 
-            File.Move(file, targetFilePath);
-        }
-        else
-        {
-            var targetFolderPath = Path.Combine(folderPath, "Others");
+        Directory.CreateDirectory(targetFolderPath);
 
-            Directory.CreateDirectory(targetFolderPath);
+        var targetFilePath = Path.Combine(targetFolderPath, Path.GetFileName(file));
 
-            var targetFilePath = Path.Combine(targetFolderPath, Path.GetFileName(file));
-
-            File.Move(file, targetFilePath);
-        }
+        File.Move(file, targetFilePath);
     }
 }
 
