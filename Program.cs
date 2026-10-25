@@ -19,7 +19,7 @@ if (!Directory.Exists(folderPath))
     return 1;
 }
 
-Dictionary<string, string> fileExtensions = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+var fileExtensions = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
 {
     { ".txt", "TextFiles" },
     { ".jpg", "Images" },
@@ -34,7 +34,14 @@ Dictionary<string, string> fileExtensions = new Dictionary<string, string>(Strin
     { ".xlsx", "Spreadsheets" },
     { ".ppt", "Presentations" },
     { ".pptx", "Presentations" },
-    // Add more file extensions and their corresponding folder names as needed
+    { ".mp3", "Audio" },
+    { ".wav", "Audio" },
+    { ".mp4", "Videos" },
+    { ".avi", "Videos" },
+    { ".mkv", "Videos" },
+    { ".zip", "Archives" },
+    { ".rar", "Archives" },
+    { ".7z", "Archives" }
 };
 
 foreach (var file in Directory.GetFiles(folderPath))
