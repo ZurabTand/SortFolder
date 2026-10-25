@@ -7,4 +7,14 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <Compile Remove="SortFolder.Core\**" />
+    <EmbeddedResource Remove="SortFolder.Core\**" />
+    <None Remove="SortFolder.Core\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="SortFolder.Core\SortFolder.Core.csproj" />
+  </ItemGroup>
+
 </Project>

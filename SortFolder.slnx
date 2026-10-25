@@ -1,3 +1,8 @@
 <Solution>
+  <Project Path="../SortFolderUI/SortFolderUI.csproj">
+    <Platform Project="x64" />
+    <Deploy />
+  </Project>
   <Project Path="SortFolder.csproj" />
+  <Project Path="SortFolder.Core/SortFolder.Core.csproj" />
 </Solution>
