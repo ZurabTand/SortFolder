@@ -1,47 +1,41 @@
 ﻿namespace SortFolder.Core;
 
-public record MovedFile(string FileName, string TargetFolder);
-
-public record FileFailure(string FileName, string Reason);
-
-public record SortResult(IReadOnlyList<MovedFile> Moved,
-                         IReadOnlyList<FileFailure> Failures,
-                         string? Error = null);
-
 public class FolderSorter
 {
-    private const string DefaultTargetFolderName = "Others";
+    private readonly Dictionary<string, string> _rules;
 
-    private static readonly Dictionary<string, string> FileExtensions = new(StringComparer.OrdinalIgnoreCase)
+    private readonly string _otherFolderName;
+
+    /// <param name="rules">Extension (e.g. ".jpg") to target folder name. Defaults to <see cref="SortRules.Default"/>.</param>
+    /// <param name="otherFolderName">Folder for files whose extension has no rule. Defaults to "Others".</param>
+    /// <exception cref="ArgumentException">A folder name is empty or not a valid single folder name.</exception>
+    public FolderSorter(IReadOnlyDictionary<string, string>? rules = null, string? otherFolderName = null)
     {
-        { ".txt", "TextFiles" },
-        { ".jpg", "Images" },
-        { ".jpeg", "Images" },
-        { ".png", "Images" },
-        { ".gif", "Images" },
-        { ".bmp", "Images" },
-        { ".pdf", "Documents" },
-        { ".doc", "Documents" },
-        { ".docx", "Documents" },
-        { ".xls", "Spreadsheets" },
-        { ".xlsx", "Spreadsheets" },
-        { ".ppt", "Presentations" },
-        { ".pptx", "Presentations" },
-        { ".mp3", "Audio" },
-        { ".wav", "Audio" },
-        { ".mp4", "Videos" },
-        { ".avi", "Videos" },
-        { ".mkv", "Videos" },
-        { ".zip", "Archives" },
-        { ".rar", "Archives" },
-        { ".7z", "Archives" }
-    };
+        _otherFolderName = otherFolderName ?? SortRules.DefaultOtherFolderName;
+
+        if (!SortRules.IsValidFolderName(_otherFolderName))
+        {
+            throw new ArgumentException($"'{_otherFolderName}' is not a valid folder name.", nameof(otherFolderName));
+        }
+
+        _rules = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var (extension, folder) in rules ?? SortRules.Default)
+        {
+            if (!SortRules.IsValidFolderName(folder))
+            {
+                throw new ArgumentException($"'{folder}' is not a valid folder name.", nameof(rules));
+            }
+
+            _rules[extension] = folder;
+        }
+    }
 
     public SortResult Sort(string folderPath)
     {
         if (!Directory.Exists(folderPath))
         {
-            return Fatal($"The folder '{folderPath}' is not a valid directory.");
+            return Fatal(SortErrorKind.InvalidFolder, $"The folder '{folderPath}' is not a valid directory.");
         }
 
         string[] files;
@@ -52,23 +46,23 @@ public class FolderSorter
         }
         catch (UnauthorizedAccessException ex)
         {
-            return Fatal($"Access to '{folderPath}' is denied. {ex.Message}");
+            return Fatal(SortErrorKind.AccessDenied, $"Access to '{folderPath}' is denied. {ex.Message}", ex.Message);
         }
         catch (DirectoryNotFoundException)
         {
-            return Fatal($"The folder '{folderPath}' no longer exists.");
+            return Fatal(SortErrorKind.FolderNotFound, $"The folder '{folderPath}' no longer exists.");
         }
         catch (PathTooLongException)
         {
-            return Fatal($"The path '{folderPath}' is too long.");
+            return Fatal(SortErrorKind.PathTooLong, $"The path '{folderPath}' is too long.");
         }
         catch (IOException ex)
         {
-            return Fatal($"Could not read the folder '{folderPath}'. {ex.Message}");
+            return Fatal(SortErrorKind.Unreadable, $"Could not read the folder '{folderPath}'. {ex.Message}", ex.Message);
         }
         catch (ArgumentException ex)
         {
-            return Fatal($"The path '{folderPath}' is invalid. {ex.Message}");
+            return Fatal(SortErrorKind.InvalidPath, $"The path '{folderPath}' is invalid. {ex.Message}", ex.Message);
         }
 
         var moved = new List<MovedFile>();
@@ -82,9 +76,9 @@ public class FolderSorter
             {
                 var extension = Path.GetExtension(file);
 
-                var targetFolderName = FileExtensions.TryGetValue(extension, out var mappedFolder)
+                var targetFolderName = _rules.TryGetValue(extension, out var mappedFolder)
                                      ? mappedFolder
-                                     : DefaultTargetFolderName;
+                                     : _otherFolderName;
 
                 var targetFolderPath = Path.Combine(folderPath, targetFolderName);
 
@@ -98,39 +92,39 @@ public class FolderSorter
             }
             catch (FileNotFoundException)
             {
-                failures.Add(new FileFailure(fileName, "The file no longer exists (deleted or moved by another process)."));
+                failures.Add(new FileFailure(fileName, FailureKind.FileNotFound));
             }
             catch (DirectoryNotFoundException)
             {
-                failures.Add(new FileFailure(fileName, "The target or source directory no longer exists."));
+                failures.Add(new FileFailure(fileName, FailureKind.DirectoryNotFound));
             }
             catch (PathTooLongException)
             {
-                failures.Add(new FileFailure(fileName, "The resulting path is too long."));
+                failures.Add(new FileFailure(fileName, FailureKind.PathTooLong));
             }
             catch (UnauthorizedAccessException ex)
             {
-                failures.Add(new FileFailure(fileName, $"Access denied (read-only file or missing permissions). {ex.Message}"));
+                failures.Add(new FileFailure(fileName, FailureKind.AccessDenied, ex.Message));
             }
             catch (IOException ex)
             {
                 // Covers locked files, a file blocking the target folder name, disk/network errors.
-                failures.Add(new FileFailure(fileName, $"I/O error (the file may be in use). {ex.Message}"));
+                failures.Add(new FileFailure(fileName, FailureKind.IoError, ex.Message));
             }
             catch (NotSupportedException ex)
             {
-                failures.Add(new FileFailure(fileName, $"Unsupported path format. {ex.Message}"));
+                failures.Add(new FileFailure(fileName, FailureKind.UnsupportedPath, ex.Message));
             }
             catch (ArgumentException ex)
             {
-                failures.Add(new FileFailure(fileName, $"Invalid path. {ex.Message}"));
+                failures.Add(new FileFailure(fileName, FailureKind.InvalidPath, ex.Message));
             }
         }
 
         return new SortResult(moved, failures);
     }
 
-    private static SortResult Fatal(string error) => new([], [], error);
+    private static SortResult Fatal(SortErrorKind kind, string error, string detail = "") => new([], [], error, kind, detail);
 
     // Returns the path unchanged if free, otherwise appends " (1)", " (2)", ... before the extension.
     private static string GetUniqueFilePath(string path)
